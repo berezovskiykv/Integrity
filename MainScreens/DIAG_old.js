@@ -1,0 +1,1 @@
+#INCLUDE "script.js"
