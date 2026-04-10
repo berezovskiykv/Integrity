@@ -1,7 +1,7 @@
 # This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 
-name: Node.js CI
+name: Node.js CI Integrity Webpack
 
 on:
   push:
@@ -11,21 +11,33 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        node-version: [18.x, 20.x, 22.x]  # Тестирует webpack на разных Node
 
     steps:
     - uses: actions/checkout@v4
+    
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    - run: npm test
+        cache-dependency-path: '**/package-lock.json'  # ← Фикс для вашего случая (если lock в корне — уберите **/)
+    
+    - name: Install dependencies  # npm ci — строго по package-lock.json
+      run: npm ci
+      
+    - name: Build with Webpack  # ← Новый шаг: webpack build (требует "build": "webpack" в package.json)
+      run: npm run webpack-build  # Или "npm run build" — укажите ваш скрипт!
+      
+    - name: Run tests  # Если тесты после build
+      run: npm test
+      
+    - name: Upload Webpack build artifact  # ← Сохраняет dist/ для скачивания/деплоя
+      uses: actions/upload-artifact@v4
+      with:
+        name: webpack-dist-${{ matrix.node-version }}
+        path: dist/  # ← Путь к выходу webpack (webpack.config.js → output.path: 'dist')
