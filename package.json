@@ -1,0 +1,14 @@
+{
+  "name": "integrity",
+  "version": "1.0.0",
+  "description": "Integrity Webpack project",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "webpack --mode=production",
+    "test": "echo 'No tests yet'"
+  },
+  "devDependencies": {
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4"
+  }
+}
