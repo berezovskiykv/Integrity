@@ -1,7 +1,7 @@
 const path = require('path');
 
 module.exports = {
-  entry: './prj.js',
+  entry: './MainScreens/prj.js',
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
