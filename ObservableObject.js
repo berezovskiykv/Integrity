@@ -19,6 +19,8 @@ class ObservableObject {
         this.config = config;
         this.currentState = {};
         this.previousState = {};
+        this.textInitialized = false;
+        this.uiCache = {};
         
         this.initialize();
 
@@ -81,9 +83,11 @@ class ObservableObject {
         var newState = this.readCurrentState();
         var hasChanged = this.hasStateChanged(newState);
         if (active) {
-            this.object.start = this.updateText();
             if (getSignalQuality(this.config.qualityTag)) {
-                /*this.object.start ? {} : this.object.start = this.updateText();*/
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
                 if (hasChanged) {
                     this.currentState = newState;
@@ -98,6 +102,7 @@ class ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.textInitialized = false;
             }
         }
         else return;
@@ -165,8 +170,52 @@ class ObservableObject {
         throw new Error('updateBadQuality must be implemented in derived class');
     }
 
+    getUiCacheKey(child, property, suffix = "") {
+        if (!child || !property) {
+            return "";
+        }
+        const childName = child.name || child.objectName || "object";
+        return `${childName}:${property}:${suffix}`;
+    }
+
+    setVisibleCached(child, visible) {
+        if (!child) {
+            return;
+        }
+        const cacheKey = this.getUiCacheKey(child, "visible");
+        if (this.uiCache[cacheKey] === visible) {
+            return;
+        }
+        this.uiCache[cacheKey] = visible;
+        child.access.setVisible(visible);
+    }
+
+    setColorCached(child, color, property) {
+        if (!child || !color || !property) {
+            return;
+        }
+        const colorKey = `${color.r},${color.g},${color.b},${color.a}`;
+        const cacheKey = this.getUiCacheKey(child, property, "rgba");
+        if (this.uiCache[cacheKey] === colorKey) {
+            return;
+        }
+        this.uiCache[cacheKey] = colorKey;
+        RGBAColoring(child, color, property);
+    }
+
     openPopup() {
-        let mouseEvent = clickRelease(this.object, this.object.name + '.click');  
+        const clickObjectName = this.object.name + '.click';
+        this.object.clicked === undefined ? this.object.clicked = 0 : {};
+        this.object.released === undefined ? this.object.released = 0 : {};
+
+        // Быстрый выход из горячего цикла:
+        // если нет нового клика и не обрабатывается "зажатая" кнопка, не трогаем clickRelease().
+        const hasPendingRelease = this.object.clicked > this.object.released;
+        if (!events.hasMouseClick(clickObjectName) && !hasPendingRelease) {
+            return;
+        }
+
+        let mouseEvent = clickRelease(this.object, clickObjectName);  
         if(mouseEvent.action == 'click'){this.object.clickRespons = mouseEvent.respons;}
         else if(mouseEvent.action == 'release'){
             runPopup(

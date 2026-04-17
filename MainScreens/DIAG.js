@@ -29,6 +29,7 @@ class StatePLCClass extends ObservableObject {
     readCurrentState() {
         var newState = {
             state: accessData.doubleValue(this.statePath),
+            quality: getSignalQuality(this.config.qualityTag),
             timestamp: new Date().getTime()
         }
         return newState;
@@ -83,10 +84,12 @@ class StatePLCClass extends ObservableObject {
     updateVisuals() {
         // let PLCStatus = this.determineState();
         // environment.logInfo(S(`${this.config.rootPath}.Status1`));
-        this.object.Err.setVisible(((S(`${this.config.rootPath}.Status1`) > 32) && 
-                                !(S(`${this.config.rootPath}.Status1`) & 256) && 
-                                !(S(`${this.config.rootPath}.Status1`) & 8388608)) || 
-                                (accessData.signalQuality(`${this.config.rootPath}.Status1`).indexOf('Good') != 0));
+        const plcState = this.currentState.state;
+        const hasGoodQuality = this.currentState.quality;
+        this.setVisibleCached(this.object.Err, ((plcState > 32) &&
+                                !(plcState & 256) &&
+                                !(plcState & 8388608)) ||
+                                !hasGoodQuality);
         // for (let i = 0; i < 6; i++) {
         //     if (PLCStatus[i].sts) {
         //         this.object.setStringValue(wrapTextCustom(PLCStatus[i].descr), "Text");
@@ -124,6 +127,10 @@ class DiagModuleClass extends ObservableObject {
         //this.copyState(this.currentState, this.previousState);
         this.MapCurrentState = new Map();
         this.MapNewState = new Map();
+        this.channelKeys = [];
+        this.channelScanIntervalMs = 200;
+        this.lastChannelScanTs = 0;
+        this.forceChannelScan = true;
         this.sw=0;
         // this.chState = {
         //      value: null,
@@ -132,6 +139,8 @@ class DiagModuleClass extends ObservableObject {
         if(this.config.moduleType=='d'){
             for(let i=0;i<64;i++)
             {
+                const channelKey = `channel${i+1}`;
+                this.channelKeys.push(channelKey);
                 this.MapCurrentState.set(`channel${i+1}`, {
                 // value: accessData.IntValue(`${this.config.rootPath}.channel${i+1}`),
                     value: null,
@@ -155,18 +164,37 @@ class DiagModuleClass extends ObservableObject {
     }
 
     readCurrentState() {
+        const nowTs = Date.now();
         var newState = {
             state: accessData.doubleValue(this.statePath),
             fault: accessData.doubleValue(this.faultPath),
             
-            timestamp: new Date().getTime()
+            timestamp: nowTs,
+            channelChanged: false
         };
-        // let vv;
-        for(const[key,value] of this.MapNewState.entries())
-        {
-         value.value = accessData.doubleValue(`${this.config.rootPath}.${key}`);   
-        //  vv=value.value;
-        //  this.object.setStringValue(vv, "Text.Text");
+
+        if (this.config.moduleType == 'd') {
+            const shouldScanChannels =
+                this.forceChannelScan ||
+                (newState.state !== this.currentState.state) ||
+                (newState.fault !== this.currentState.fault) ||
+                (nowTs - this.lastChannelScanTs >= this.channelScanIntervalMs);
+
+            if (shouldScanChannels) {
+                for (const key of this.channelKeys) {
+                    const nextValue = accessData.doubleValue(`${this.config.rootPath}.${key}`);
+                    const currentChannelState = this.MapCurrentState.get(key);
+                    const channelChanged = currentChannelState.value !== nextValue;
+
+                    this.MapNewState.get(key).value = nextValue;
+                    currentChannelState.value = nextValue;
+                    currentChannelState.hasChanged = channelChanged || this.forceChannelScan;
+                    if (channelChanged) {
+                        newState.channelChanged = true;
+                    }
+                }
+                this.lastChannelScanTs = nowTs;
+            }
         }
 
         return newState;
@@ -180,14 +208,11 @@ class DiagModuleClass extends ObservableObject {
             return true;
         }
 
-        for(const[key,value] of this.MapCurrentState.entries())
-        {
-         let newValue = this.MapNewState.get(key);
-         if(newValue != value)
-            value.hasChanged = true;
-            value.value=newValue.value;  
-         //   return true;
+        if (this.config.moduleType == 'd' && newState.channelChanged) {
+            return true;
         }
+
+        return false;
     }
     updateText() {
         // this.object.setStringValue(this.config.ID, "ID.Text");
@@ -237,25 +262,16 @@ class DiagModuleClass extends ObservableObject {
         if (active) {
             if (getSignalQuality(this.config.qualityTag)) {
                 // this.object.start = this.updateText();
-                this.updateText();
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
-                if(this.config.moduleType=='d') {
-                    for(const[key,value] of this.MapCurrentState.entries())
-                    {
-                        if (hasChanged || value.hasChanged) {
-                        this.currentState = newState;
-                        this.onStateChanged();
-                        //this.copyState(this.currentState, this.previousState);
-                        return true;
-                        }
-                    }
-                } 
-                else {
-                    if (hasChanged) {
-                        this.currentState = newState;
-                        this.onStateChanged();
-                        return true;
-                    }
+                if (hasChanged) {
+                    this.currentState = newState;
+                    this.onStateChanged();
+                    this.forceChannelScan = false;
+                    return true;
                 }   
 
                 return false;
@@ -264,6 +280,8 @@ class DiagModuleClass extends ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.forceChannelScan = true;
+                this.textInitialized = false;
             }
         }
         else return;
@@ -276,19 +294,18 @@ class DiagModuleClass extends ObservableObject {
      */
 
     changeColor(child, color, property) {
-        if (child) {
-            RGBAColoring(child, color, property);
-        }
+        this.setColorCached(child, color, property);
     }
  /** Изменяет видимость указанного свойства */
     changeVisibility(child, condition) {
-        if (child) {
-            child.access.setVisible(condition);
-        }
+        this.setVisibleCached(child, condition);
     }
     DiscretMod(object){
             for(const[key,value] of this.MapCurrentState.entries())
         {
+              if (!value.hasChanged) {
+                  continue;
+              }
               if(value.value)
               this.changeColor(this.object[key], colors.DIAG.state.dp, "FillColor");
             else {
@@ -394,7 +411,7 @@ class LinkClass extends ObservableObject {
 
    updateBadQuality(){
         this.object.setStringValue("", "click.Tooltip");
-        RGBAColoring(this.object, colors.Link.state.bad, "LineColor");
+        this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
 /** Обновляет визуальные элементы */
@@ -402,23 +419,23 @@ class LinkClass extends ObservableObject {
    
         if(this.sw=='sw2')
        {
-            if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && accessData.boolValue(this.ARM))
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+            if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.ARM)
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
        else if(this.sw=='sw1'){
-          if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1))
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+          if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1))
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
        else
        {
-            if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && accessData.stringValue(this.adminstatus2)==1 && accessData.stringValue(this.operstatus2)==1)
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+            if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.adminstatus2 == 1 && this.currentState.operstatus2 == 1)
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
 
        
@@ -437,6 +454,7 @@ class LinkLsuClass extends ObservableObject {
         this.LSU = `KSPG.${this.end_port}`;
         this.currentState = this.getInitialState();
         this.config.code = 'codes.TS8'
+        this.lsuMasks = this.setupLsuMasks();
     
     }
 
@@ -446,14 +464,55 @@ class LinkLsuClass extends ObservableObject {
             adminstatus: null,
             operstatus: null,
             LSU: null,
+            decodedLsuState: {},
             timestamp: null
         };
     }
+    setupLsuMasks() {
+        const statusPath = `${this.config.code}.Status1`;
+        return {
+            lspg: S(`${statusPath}.Out01`),
+            bpaiv_azot: S(`${statusPath}.Out02`),
+            bpaiv_air: S(`${statusPath}.Out03`),
+            birgeo: S(`${statusPath}.Out04`),
+            eo: S(`${statusPath}.Out06`),
+            bo: S(`${statusPath}.Out07`),
+            sk: S(`${statusPath}.Out08`),
+            owen: S(`${statusPath}.Out01`),
+            bkk_a1: S(`${statusPath}.Out02`),
+            bkk_a2: S(`${statusPath}.Out03`),
+            stn3000: S(`${statusPath}.Out04`),
+            knspt: S(`${statusPath}.Out05`),
+            apk: S(`${statusPath}.Out06`)
+        };
+    }
+    decodeLsuState(lsu) {
+        if (lsu === null || lsu === undefined) {
+            return {};
+        }
+        return {
+            lspg: !!(lsu & this.lsuMasks.lspg),
+            bpaiv_azot: !!(lsu & this.lsuMasks.bpaiv_azot),
+            bpaiv_air: !!(lsu & this.lsuMasks.bpaiv_air),
+            birgeo: !!(lsu & this.lsuMasks.birgeo),
+            eo: !!(lsu & this.lsuMasks.eo),
+            bo: !!(lsu & this.lsuMasks.bo),
+            sk: !!(lsu & this.lsuMasks.sk),
+            owen: !!(lsu & this.lsuMasks.owen),
+            bkk_a1: !!(lsu & this.lsuMasks.bkk_a1),
+            bkk_a2: !!(lsu & this.lsuMasks.bkk_a2),
+            stn3000: !!(lsu & this.lsuMasks.stn3000),
+            knspt: !!(lsu & this.lsuMasks.knspt),
+            apk: !!(lsu & this.lsuMasks.apk)
+        };
+    }
     readCurrentState() {
+        const lsuValue = accessData.doubleValue(this.LSU);
         var newState = {
             adminstatus: accessData.doubleValue(this.adminstatus),
             operstatus: accessData.doubleValue(this.operstatus),
-            LSU: accessData.doubleValue(this.LSU),
+            LSU: lsuValue,
+            decodedLsuState: this.decodeLsuState(lsuValue),
             timestamp: new Date().getTime()
         };
          
@@ -504,39 +563,29 @@ class LinkLsuClass extends ObservableObject {
 
    updateBadQuality(){
         this.object.setStringValue("", "click.Tooltip");
-        RGBAColoring(this.object, colors.Link.state.bad, "LineColor");
+        this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
 /** Обновляет визуальные элементы */
     updateVisuals() {
-    if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && (this.processStateLSU()[this.config.prefix]  || this.processStateLSU()[this.config.prefix2]))
-        RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
-    else
-        RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
-    if(this.processStateLSU()[this.config.prefix]  || this.processStateLSU()[this.config.prefix2])
-        RGBAColoring(this.object, colors.VLV.Fillstate.open, "body.FillColor");
-    else
-        RGBAColoring(this.object, colors.Link.state.bad, "body.FillColor");
+    const lsuState = this.currentState.decodedLsuState || {};
+    const lsuPrefixState = !!(lsuState[this.config.prefix] || lsuState[this.config.prefix2]);
+    const isLinkUp = this.currentState.adminstatus == 1 && this.currentState.operstatus == 1;
+
+    if (isLinkUp && lsuPrefixState) {
+        this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
+    } else {
+        this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
+    }
+    if (lsuPrefixState) {
+        this.setColorCached(this.object, colors.VLV.Fillstate.open, "body.FillColor");
+    } else {
+        this.setColorCached(this.object, colors.Link.state.bad, "body.FillColor");
+    }
     }
 
     processStateLSU() {
-        let lsu = accessData.doubleValue(this.LSU);
-        if (lsu === null || lsu === undefined) return; 
-        return {
-            lspg              :   !!(lsu & (S(`${this.config.code}.Status1.Out01`))),
-            bpaiv_azot        :   !!(lsu & (S(`${this.config.code}.Status1.Out02`))),
-            bpaiv_air         :   !!(lsu & (S(`${this.config.code}.Status1.Out03`))),
-            birgeo            :   !!(lsu & (S(`${this.config.code}.Status1.Out04`))),
-            eo                :   !!(lsu & (S(`${this.config.code}.Status1.Out06`))),
-            bo                :   !!(lsu & (S(`${this.config.code}.Status1.Out07`))),
-            sk                :   !!(lsu & (S(`${this.config.code}.Status1.Out08`))),
-            owen              :   !!(lsu & (S(`${this.config.code}.Status1.Out01`))),
-            bkk_a1            :   !!(lsu & (S(`${this.config.code}.Status1.Out02`))),
-            bkk_a2            :   !!(lsu & (S(`${this.config.code}.Status1.Out03`))),
-            stn3000           :   !!(lsu & (S(`${this.config.code}.Status1.Out04`))),
-            knspt             :   !!(lsu & (S(`${this.config.code}.Status1.Out05`))),
-            apk               :   !!(lsu & (S(`${this.config.code}.Status1.Out06`)))
-        }
+        return this.currentState.decodedLsuState || {};
     }
 }
 class SwitchClass extends ObservableObject {
@@ -571,6 +620,7 @@ class SwitchClass extends ObservableObject {
             state: accessData.boolValue(this.statePath),
             quality: getSignalQuality(this.config.qualityTag),
             date: accessData.stringValue(this.date),
+            cpuTotal: this.config.moduleType == 'ARM' ? accessData.stringValue(`${this.config.rootPath}.systemStats.cpu_total`) : '',
             timestamp: new Date().getTime()
         };
         return newState;
@@ -596,7 +646,10 @@ class SwitchClass extends ObservableObject {
      //   object.ID.setStringValue(this.statePath, "Text");
         if (active) {
             if (getSignalQuality(this.config.qualityTag)) {
-                this.object.start = this.updateText();
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
                 if (hasChanged) {
                     this.currentState = newState;
@@ -609,6 +662,7 @@ class SwitchClass extends ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.textInitialized = false;
             }
         }
         else return;
@@ -626,22 +680,17 @@ class SwitchClass extends ObservableObject {
 
 /** Обновляет визуальные элементы */
     updateVisuals() {
-        if(accessData.boolValue(this.valuePath))
-        this.object.Link.setVisible(false)
-        else
-        this.object.Link.setVisible(true)
+        this.setVisibleCached(this.object.Link, !this.currentState.state);
         //    this.changeVisibility(this.object.Link, !accessData.boolValue(`${this.config.rootPath}.Link`));
         if(this.config.moduleType=='ARM'){
-            this.object.setStringValue(accessData.stringValue(this.date), "date.Text");
-            this.object.setStringValue(accessData.stringValue(`${this.config.rootPath}.systemStats.cpu_total`)+' %', "cp.Text");
+            this.object.setStringValue(this.currentState.date, "date.Text");
+            this.object.setStringValue(this.currentState.cpuTotal + ' %', "cp.Text");
         }
     }    
     //}
  /** Изменяет видимость указанного свойства */
     changeVisibility(child, condition) {
-        if (child) {
-            child.access.setVisible(condition);
-        }
+        this.setVisibleCached(child, condition);
     }
 }
 function PLCState(object) {
