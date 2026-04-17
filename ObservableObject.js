@@ -166,7 +166,18 @@ class ObservableObject {
     }
 
     openPopup() {
-        let mouseEvent = clickRelease(this.object, this.object.name + '.click');  
+        const clickObjectName = this.object.name + '.click';
+        this.object.clicked === undefined ? this.object.clicked = 0 : {};
+        this.object.released === undefined ? this.object.released = 0 : {};
+
+        // Быстрый выход из горячего цикла:
+        // если нет нового клика и не обрабатывается "зажатая" кнопка, не трогаем clickRelease().
+        const hasPendingRelease = this.object.clicked > this.object.released;
+        if (!events.hasMouseClick(clickObjectName) && !hasPendingRelease) {
+            return;
+        }
+
+        let mouseEvent = clickRelease(this.object, clickObjectName);  
         if(mouseEvent.action == 'click'){this.object.clickRespons = mouseEvent.respons;}
         else if(mouseEvent.action == 'release'){
             runPopup(
