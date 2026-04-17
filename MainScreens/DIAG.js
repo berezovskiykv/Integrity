@@ -262,7 +262,10 @@ class DiagModuleClass extends ObservableObject {
         if (active) {
             if (getSignalQuality(this.config.qualityTag)) {
                 // this.object.start = this.updateText();
-                this.updateText();
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
                 if (hasChanged) {
                     this.currentState = newState;
@@ -278,6 +281,7 @@ class DiagModuleClass extends ObservableObject {
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
                 this.forceChannelScan = true;
+                this.textInitialized = false;
             }
         }
         else return;
