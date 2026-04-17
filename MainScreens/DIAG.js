@@ -124,6 +124,10 @@ class DiagModuleClass extends ObservableObject {
         //this.copyState(this.currentState, this.previousState);
         this.MapCurrentState = new Map();
         this.MapNewState = new Map();
+        this.channelKeys = [];
+        this.channelScanIntervalMs = 200;
+        this.lastChannelScanTs = 0;
+        this.forceChannelScan = true;
         this.sw=0;
         // this.chState = {
         //      value: null,
@@ -132,6 +136,8 @@ class DiagModuleClass extends ObservableObject {
         if(this.config.moduleType=='d'){
             for(let i=0;i<64;i++)
             {
+                const channelKey = `channel${i+1}`;
+                this.channelKeys.push(channelKey);
                 this.MapCurrentState.set(`channel${i+1}`, {
                 // value: accessData.IntValue(`${this.config.rootPath}.channel${i+1}`),
                     value: null,
@@ -155,18 +161,37 @@ class DiagModuleClass extends ObservableObject {
     }
 
     readCurrentState() {
+        const nowTs = Date.now();
         var newState = {
             state: accessData.doubleValue(this.statePath),
             fault: accessData.doubleValue(this.faultPath),
             
-            timestamp: new Date().getTime()
+            timestamp: nowTs,
+            channelChanged: false
         };
-        // let vv;
-        for(const[key,value] of this.MapNewState.entries())
-        {
-         value.value = accessData.doubleValue(`${this.config.rootPath}.${key}`);   
-        //  vv=value.value;
-        //  this.object.setStringValue(vv, "Text.Text");
+
+        if (this.config.moduleType == 'd') {
+            const shouldScanChannels =
+                this.forceChannelScan ||
+                (newState.state !== this.currentState.state) ||
+                (newState.fault !== this.currentState.fault) ||
+                (nowTs - this.lastChannelScanTs >= this.channelScanIntervalMs);
+
+            if (shouldScanChannels) {
+                for (const key of this.channelKeys) {
+                    const nextValue = accessData.doubleValue(`${this.config.rootPath}.${key}`);
+                    const currentChannelState = this.MapCurrentState.get(key);
+                    const channelChanged = currentChannelState.value !== nextValue;
+
+                    this.MapNewState.get(key).value = nextValue;
+                    currentChannelState.value = nextValue;
+                    currentChannelState.hasChanged = channelChanged || this.forceChannelScan;
+                    if (channelChanged) {
+                        newState.channelChanged = true;
+                    }
+                }
+                this.lastChannelScanTs = nowTs;
+            }
         }
 
         return newState;
@@ -180,14 +205,11 @@ class DiagModuleClass extends ObservableObject {
             return true;
         }
 
-        for(const[key,value] of this.MapCurrentState.entries())
-        {
-         let newValue = this.MapNewState.get(key);
-         if(newValue != value)
-            value.hasChanged = true;
-            value.value=newValue.value;  
-         //   return true;
+        if (this.config.moduleType == 'd' && newState.channelChanged) {
+            return true;
         }
+
+        return false;
     }
     updateText() {
         // this.object.setStringValue(this.config.ID, "ID.Text");
@@ -239,23 +261,11 @@ class DiagModuleClass extends ObservableObject {
                 // this.object.start = this.updateText();
                 this.updateText();
                 this.openPopup();
-                if(this.config.moduleType=='d') {
-                    for(const[key,value] of this.MapCurrentState.entries())
-                    {
-                        if (hasChanged || value.hasChanged) {
-                        this.currentState = newState;
-                        this.onStateChanged();
-                        //this.copyState(this.currentState, this.previousState);
-                        return true;
-                        }
-                    }
-                } 
-                else {
-                    if (hasChanged) {
-                        this.currentState = newState;
-                        this.onStateChanged();
-                        return true;
-                    }
+                if (hasChanged) {
+                    this.currentState = newState;
+                    this.onStateChanged();
+                    this.forceChannelScan = false;
+                    return true;
                 }   
 
                 return false;
@@ -264,6 +274,7 @@ class DiagModuleClass extends ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.forceChannelScan = true;
             }
         }
         else return;
@@ -289,6 +300,9 @@ class DiagModuleClass extends ObservableObject {
     DiscretMod(object){
             for(const[key,value] of this.MapCurrentState.entries())
         {
+              if (!value.hasChanged) {
+                  continue;
+              }
               if(value.value)
               this.changeColor(this.object[key], colors.DIAG.state.dp, "FillColor");
             else {
