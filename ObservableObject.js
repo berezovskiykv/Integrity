@@ -19,6 +19,7 @@ class ObservableObject {
         this.config = config;
         this.currentState = {};
         this.previousState = {};
+        this.textInitialized = false;
         
         this.initialize();
 
@@ -81,9 +82,11 @@ class ObservableObject {
         var newState = this.readCurrentState();
         var hasChanged = this.hasStateChanged(newState);
         if (active) {
-            this.object.start = this.updateText();
             if (getSignalQuality(this.config.qualityTag)) {
-                /*this.object.start ? {} : this.object.start = this.updateText();*/
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
                 if (hasChanged) {
                     this.currentState = newState;
@@ -98,6 +101,7 @@ class ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.textInitialized = false;
             }
         }
         else return;
