@@ -451,6 +451,7 @@ class LinkLsuClass extends ObservableObject {
         this.LSU = `KSPG.${this.end_port}`;
         this.currentState = this.getInitialState();
         this.config.code = 'codes.TS8'
+        this.lsuMasks = this.setupLsuMasks();
     
     }
 
@@ -460,14 +461,55 @@ class LinkLsuClass extends ObservableObject {
             adminstatus: null,
             operstatus: null,
             LSU: null,
+            decodedLsuState: {},
             timestamp: null
         };
     }
+    setupLsuMasks() {
+        const statusPath = `${this.config.code}.Status1`;
+        return {
+            lspg: S(`${statusPath}.Out01`),
+            bpaiv_azot: S(`${statusPath}.Out02`),
+            bpaiv_air: S(`${statusPath}.Out03`),
+            birgeo: S(`${statusPath}.Out04`),
+            eo: S(`${statusPath}.Out06`),
+            bo: S(`${statusPath}.Out07`),
+            sk: S(`${statusPath}.Out08`),
+            owen: S(`${statusPath}.Out01`),
+            bkk_a1: S(`${statusPath}.Out02`),
+            bkk_a2: S(`${statusPath}.Out03`),
+            stn3000: S(`${statusPath}.Out04`),
+            knspt: S(`${statusPath}.Out05`),
+            apk: S(`${statusPath}.Out06`)
+        };
+    }
+    decodeLsuState(lsu) {
+        if (lsu === null || lsu === undefined) {
+            return {};
+        }
+        return {
+            lspg: !!(lsu & this.lsuMasks.lspg),
+            bpaiv_azot: !!(lsu & this.lsuMasks.bpaiv_azot),
+            bpaiv_air: !!(lsu & this.lsuMasks.bpaiv_air),
+            birgeo: !!(lsu & this.lsuMasks.birgeo),
+            eo: !!(lsu & this.lsuMasks.eo),
+            bo: !!(lsu & this.lsuMasks.bo),
+            sk: !!(lsu & this.lsuMasks.sk),
+            owen: !!(lsu & this.lsuMasks.owen),
+            bkk_a1: !!(lsu & this.lsuMasks.bkk_a1),
+            bkk_a2: !!(lsu & this.lsuMasks.bkk_a2),
+            stn3000: !!(lsu & this.lsuMasks.stn3000),
+            knspt: !!(lsu & this.lsuMasks.knspt),
+            apk: !!(lsu & this.lsuMasks.apk)
+        };
+    }
     readCurrentState() {
+        const lsuValue = accessData.doubleValue(this.LSU);
         var newState = {
             adminstatus: accessData.doubleValue(this.adminstatus),
             operstatus: accessData.doubleValue(this.operstatus),
-            LSU: accessData.doubleValue(this.LSU),
+            LSU: lsuValue,
+            decodedLsuState: this.decodeLsuState(lsuValue),
             timestamp: new Date().getTime()
         };
          
@@ -523,34 +565,24 @@ class LinkLsuClass extends ObservableObject {
 
 /** Обновляет визуальные элементы */
     updateVisuals() {
-    if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && (this.processStateLSU()[this.config.prefix]  || this.processStateLSU()[this.config.prefix2]))
+    const lsuState = this.currentState.decodedLsuState || {};
+    const lsuPrefixState = !!(lsuState[this.config.prefix] || lsuState[this.config.prefix2]);
+    const isLinkUp = this.currentState.adminstatus == 1 && this.currentState.operstatus == 1;
+
+    if (isLinkUp && lsuPrefixState) {
         RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
-    else
+    } else {
         RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
-    if(this.processStateLSU()[this.config.prefix]  || this.processStateLSU()[this.config.prefix2])
+    }
+    if (lsuPrefixState) {
         RGBAColoring(this.object, colors.VLV.Fillstate.open, "body.FillColor");
-    else
+    } else {
         RGBAColoring(this.object, colors.Link.state.bad, "body.FillColor");
+    }
     }
 
     processStateLSU() {
-        let lsu = accessData.doubleValue(this.LSU);
-        if (lsu === null || lsu === undefined) return; 
-        return {
-            lspg              :   !!(lsu & (S(`${this.config.code}.Status1.Out01`))),
-            bpaiv_azot        :   !!(lsu & (S(`${this.config.code}.Status1.Out02`))),
-            bpaiv_air         :   !!(lsu & (S(`${this.config.code}.Status1.Out03`))),
-            birgeo            :   !!(lsu & (S(`${this.config.code}.Status1.Out04`))),
-            eo                :   !!(lsu & (S(`${this.config.code}.Status1.Out06`))),
-            bo                :   !!(lsu & (S(`${this.config.code}.Status1.Out07`))),
-            sk                :   !!(lsu & (S(`${this.config.code}.Status1.Out08`))),
-            owen              :   !!(lsu & (S(`${this.config.code}.Status1.Out01`))),
-            bkk_a1            :   !!(lsu & (S(`${this.config.code}.Status1.Out02`))),
-            bkk_a2            :   !!(lsu & (S(`${this.config.code}.Status1.Out03`))),
-            stn3000           :   !!(lsu & (S(`${this.config.code}.Status1.Out04`))),
-            knspt             :   !!(lsu & (S(`${this.config.code}.Status1.Out05`))),
-            apk               :   !!(lsu & (S(`${this.config.code}.Status1.Out06`)))
-        }
+        return this.currentState.decodedLsuState || {};
     }
 }
 class SwitchClass extends ObservableObject {
