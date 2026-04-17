@@ -86,7 +86,7 @@ class StatePLCClass extends ObservableObject {
         // environment.logInfo(S(`${this.config.rootPath}.Status1`));
         const plcState = this.currentState.state;
         const hasGoodQuality = this.currentState.quality;
-        this.object.Err.setVisible(((plcState > 32) &&
+        this.setVisibleCached(this.object.Err, ((plcState > 32) &&
                                 !(plcState & 256) &&
                                 !(plcState & 8388608)) ||
                                 !hasGoodQuality);
@@ -290,15 +290,11 @@ class DiagModuleClass extends ObservableObject {
      */
 
     changeColor(child, color, property) {
-        if (child) {
-            RGBAColoring(child, color, property);
-        }
+        this.setColorCached(child, color, property);
     }
  /** Изменяет видимость указанного свойства */
     changeVisibility(child, condition) {
-        if (child) {
-            child.access.setVisible(condition);
-        }
+        this.setVisibleCached(child, condition);
     }
     DiscretMod(object){
             for(const[key,value] of this.MapCurrentState.entries())
@@ -411,7 +407,7 @@ class LinkClass extends ObservableObject {
 
    updateBadQuality(){
         this.object.setStringValue("", "click.Tooltip");
-        RGBAColoring(this.object, colors.Link.state.bad, "LineColor");
+        this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
 /** Обновляет визуальные элементы */
@@ -420,22 +416,22 @@ class LinkClass extends ObservableObject {
         if(this.sw=='sw2')
        {
             if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.ARM)
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
        else if(this.sw=='sw1'){
           if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1))
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
        else
        {
             if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.adminstatus2 == 1 && this.currentState.operstatus2 == 1)
-            RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+            this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
-            RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+            this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
        }
 
        
@@ -563,7 +559,7 @@ class LinkLsuClass extends ObservableObject {
 
    updateBadQuality(){
         this.object.setStringValue("", "click.Tooltip");
-        RGBAColoring(this.object, colors.Link.state.bad, "LineColor");
+        this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
 /** Обновляет визуальные элементы */
@@ -573,14 +569,14 @@ class LinkLsuClass extends ObservableObject {
     const isLinkUp = this.currentState.adminstatus == 1 && this.currentState.operstatus == 1;
 
     if (isLinkUp && lsuPrefixState) {
-        RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
+        this.setColorCached(this.object, colors.VLV.Fillstate.open, "LineColor");
     } else {
-        RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
+        this.setColorCached(this.object, colors.AP.Flt.act, "LineColor");
     }
     if (lsuPrefixState) {
-        RGBAColoring(this.object, colors.VLV.Fillstate.open, "body.FillColor");
+        this.setColorCached(this.object, colors.VLV.Fillstate.open, "body.FillColor");
     } else {
-        RGBAColoring(this.object, colors.Link.state.bad, "body.FillColor");
+        this.setColorCached(this.object, colors.Link.state.bad, "body.FillColor");
     }
     }
 
@@ -646,7 +642,10 @@ class SwitchClass extends ObservableObject {
      //   object.ID.setStringValue(this.statePath, "Text");
         if (active) {
             if (getSignalQuality(this.config.qualityTag)) {
-                this.object.start = this.updateText();
+                if (!this.textInitialized) {
+                    this.object.start = this.updateText();
+                    this.textInitialized = true;
+                }
                 this.openPopup();
                 if (hasChanged) {
                     this.currentState = newState;
@@ -659,6 +658,7 @@ class SwitchClass extends ObservableObject {
                 clickClear(this.object, this.object.name + ".click")
                 this.updateBadQuality()
                 this.currentState = this.getInitialState()
+                this.textInitialized = false;
             }
         }
         else return;
@@ -676,10 +676,7 @@ class SwitchClass extends ObservableObject {
 
 /** Обновляет визуальные элементы */
     updateVisuals() {
-        if(this.currentState.state)
-        this.object.Link.setVisible(false)
-        else
-        this.object.Link.setVisible(true)
+        this.setVisibleCached(this.object.Link, !this.currentState.state);
         //    this.changeVisibility(this.object.Link, !accessData.boolValue(`${this.config.rootPath}.Link`));
         if(this.config.moduleType=='ARM'){
             this.object.setStringValue(this.currentState.date, "date.Text");
@@ -689,9 +686,7 @@ class SwitchClass extends ObservableObject {
     //}
  /** Изменяет видимость указанного свойства */
     changeVisibility(child, condition) {
-        if (child) {
-            child.access.setVisible(condition);
-        }
+        this.setVisibleCached(child, condition);
     }
 }
 function PLCState(object) {

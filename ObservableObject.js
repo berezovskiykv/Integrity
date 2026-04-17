@@ -20,6 +20,7 @@ class ObservableObject {
         this.currentState = {};
         this.previousState = {};
         this.textInitialized = false;
+        this.uiCache = {};
         
         this.initialize();
 
@@ -167,6 +168,39 @@ class ObservableObject {
     }
     updateBadQuality() {
         throw new Error('updateBadQuality must be implemented in derived class');
+    }
+
+    getUiCacheKey(child, property, suffix = "") {
+        if (!child || !property) {
+            return "";
+        }
+        const childName = child.name || child.objectName || "object";
+        return `${childName}:${property}:${suffix}`;
+    }
+
+    setVisibleCached(child, visible) {
+        if (!child) {
+            return;
+        }
+        const cacheKey = this.getUiCacheKey(child, "visible");
+        if (this.uiCache[cacheKey] === visible) {
+            return;
+        }
+        this.uiCache[cacheKey] = visible;
+        child.access.setVisible(visible);
+    }
+
+    setColorCached(child, color, property) {
+        if (!child || !color || !property) {
+            return;
+        }
+        const colorKey = `${color.r},${color.g},${color.b},${color.a}`;
+        const cacheKey = this.getUiCacheKey(child, property, "rgba");
+        if (this.uiCache[cacheKey] === colorKey) {
+            return;
+        }
+        this.uiCache[cacheKey] = colorKey;
+        RGBAColoring(child, color, property);
     }
 
     openPopup() {
