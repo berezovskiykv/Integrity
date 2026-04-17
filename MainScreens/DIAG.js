@@ -29,6 +29,7 @@ class StatePLCClass extends ObservableObject {
     readCurrentState() {
         var newState = {
             state: accessData.doubleValue(this.statePath),
+            quality: getSignalQuality(this.config.qualityTag),
             timestamp: new Date().getTime()
         }
         return newState;
@@ -83,10 +84,12 @@ class StatePLCClass extends ObservableObject {
     updateVisuals() {
         // let PLCStatus = this.determineState();
         // environment.logInfo(S(`${this.config.rootPath}.Status1`));
-        this.object.Err.setVisible(((S(`${this.config.rootPath}.Status1`) > 32) && 
-                                !(S(`${this.config.rootPath}.Status1`) & 256) && 
-                                !(S(`${this.config.rootPath}.Status1`) & 8388608)) || 
-                                (accessData.signalQuality(`${this.config.rootPath}.Status1`).indexOf('Good') != 0));
+        const plcState = this.currentState.state;
+        const hasGoodQuality = this.currentState.quality;
+        this.object.Err.setVisible(((plcState > 32) &&
+                                !(plcState & 256) &&
+                                !(plcState & 8388608)) ||
+                                !hasGoodQuality);
         // for (let i = 0; i < 6; i++) {
         //     if (PLCStatus[i].sts) {
         //         this.object.setStringValue(wrapTextCustom(PLCStatus[i].descr), "Text");
@@ -617,6 +620,7 @@ class SwitchClass extends ObservableObject {
             state: accessData.boolValue(this.statePath),
             quality: getSignalQuality(this.config.qualityTag),
             date: accessData.stringValue(this.date),
+            cpuTotal: this.config.moduleType == 'ARM' ? accessData.stringValue(`${this.config.rootPath}.systemStats.cpu_total`) : '',
             timestamp: new Date().getTime()
         };
         return newState;
@@ -672,14 +676,14 @@ class SwitchClass extends ObservableObject {
 
 /** Обновляет визуальные элементы */
     updateVisuals() {
-        if(accessData.boolValue(this.valuePath))
+        if(this.currentState.state)
         this.object.Link.setVisible(false)
         else
         this.object.Link.setVisible(true)
         //    this.changeVisibility(this.object.Link, !accessData.boolValue(`${this.config.rootPath}.Link`));
         if(this.config.moduleType=='ARM'){
-            this.object.setStringValue(accessData.stringValue(this.date), "date.Text");
-            this.object.setStringValue(accessData.stringValue(`${this.config.rootPath}.systemStats.cpu_total`)+' %', "cp.Text");
+            this.object.setStringValue(this.currentState.date, "date.Text");
+            this.object.setStringValue(this.currentState.cpuTotal + ' %', "cp.Text");
         }
     }    
     //}
