@@ -216,13 +216,13 @@ class DiagModuleClass extends ObservableObject {
     }
     updateText() {
         // this.object.setStringValue(this.config.ID, "ID.Text");
-        this.object.setStringValue(this.config.description, "click.Tooltip");
+        this.setStringCached(this.object, this.config.description, "click.Tooltip");
         return true;
     }
 
    updateBadQuality(){
         // this.object.setStringValue("???????", "ID.Text");
-        this.object.setStringValue("", "click.Tooltip");
+        this.setStringCached(this.object, "", "click.Tooltip");
         // Цвет общего фона
         this.changeColor(this.object.body, colors.SERVICE.Badqual.field, "FillColor");
         if(this.config.moduleType=='d'){
@@ -405,12 +405,12 @@ class LinkClass extends ObservableObject {
 
     updateText() {
         //this.object.setStringValue(this.config.ID, "ID.Text");
-        this.object.setStringValue(this.config.description, "click.Tooltip");
+        this.setStringCached(this.object, this.config.description, "click.Tooltip");
         return true;
     }
 
    updateBadQuality(){
-        this.object.setStringValue("", "click.Tooltip");
+        this.setStringCached(this.object, "", "click.Tooltip");
         this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
@@ -557,12 +557,12 @@ class LinkLsuClass extends ObservableObject {
 
     updateText() {
         //this.object.setStringValue(this.config.ID, "ID.Text");
-        this.object.setStringValue(this.config.description, "click.Tooltip");
+        this.setStringCached(this.object, this.config.description, "click.Tooltip");
         return true;
     }
 
    updateBadQuality(){
-        this.object.setStringValue("", "click.Tooltip");
+        this.setStringCached(this.object, "", "click.Tooltip");
         this.setColorCached(this.object, colors.Link.state.bad, "LineColor");
     }
 
@@ -669,13 +669,13 @@ class SwitchClass extends ObservableObject {
     }
 
     updateText() {
-        this.object.setStringValue(this.config.ID, "ID.Text");
-        this.object.setStringValue(this.config.description, "click.Tooltip");
+        this.setStringCached(this.object, this.config.ID, "ID.Text");
+        this.setStringCached(this.object, this.config.description, "click.Tooltip");
         return true;
     }
 
    updateBadQuality(){
-        this.object.setStringValue("", "click.Tooltip");
+        this.setStringCached(this.object, "", "click.Tooltip");
     }
 
 /** Обновляет визуальные элементы */
@@ -683,8 +683,8 @@ class SwitchClass extends ObservableObject {
         this.setVisibleCached(this.object.Link, !this.currentState.state);
         //    this.changeVisibility(this.object.Link, !accessData.boolValue(`${this.config.rootPath}.Link`));
         if(this.config.moduleType=='ARM'){
-            this.object.setStringValue(this.currentState.date, "date.Text");
-            this.object.setStringValue(this.currentState.cpuTotal + ' %', "cp.Text");
+            this.setStringCached(this.object, this.currentState.date, "date.Text");
+            this.setStringCached(this.object, this.currentState.cpuTotal + ' %', "cp.Text");
         }
     }    
     //}
@@ -746,23 +746,42 @@ function layers(object, objectName, name_layer) {
     let mouseEvent = clickRelease(object, objectName);
     if(mouseEvent.action == 'release') {
         if(name_layer == 'VU'){
-            layer.setVisible("VU",true);
-            layer.setVisible("main",false);
+            if (!layer.isVisible("VU")) {
+                layer.setVisible("VU",true);
+            }
+            if (layer.isVisible("main")) {
+                layer.setVisible("main",false);
+            }
             // VU.Rectangle_6.setDoubleValue(3,"LineWidth")
             // SU.Rectangle_6.setDoubleValue(1,"LineWidth")
         }
         else if(name_layer == 'main') {
-            layer.setVisible("VU",false);
-            layer.setVisible("main",true);
+            if (layer.isVisible("VU")) {
+                layer.setVisible("VU",false);
+            }
+            if (!layer.isVisible("main")) {
+                layer.setVisible("main",true);
+            }
         }
     }
+
+    if (object._lineWidthCache === undefined) {
+        object._lineWidthCache = "";
+    }
+
     if(layer.isVisible("VU")){
-        VU.Rectangle_6.setDoubleValue(3,"LineWidth")
-        SU.Rectangle_6.setDoubleValue(1,"LineWidth")
+        if (object._lineWidthCache !== "VU") {
+            VU.Rectangle_6.setDoubleValue(3,"LineWidth")
+            SU.Rectangle_6.setDoubleValue(1,"LineWidth")
+            object._lineWidthCache = "VU";
+        }
     }
     else if (layer.isVisible("main")){
-        VU.Rectangle_6.setDoubleValue(1,"LineWidth")
-        SU.Rectangle_6.setDoubleValue(3,"LineWidth")
+        if (object._lineWidthCache !== "main") {
+            VU.Rectangle_6.setDoubleValue(1,"LineWidth")
+            SU.Rectangle_6.setDoubleValue(3,"LineWidth")
+            object._lineWidthCache = "main";
+        }
     }
 
 }

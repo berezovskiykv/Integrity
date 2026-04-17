@@ -203,6 +203,19 @@ class ObservableObject {
         RGBAColoring(child, color, property);
     }
 
+    setStringCached(target, value, property) {
+        if (!target || !property || typeof target.setStringValue !== "function") {
+            return;
+        }
+        const stringValue = value === undefined || value === null ? "" : String(value);
+        const cacheKey = this.getUiCacheKey(target, property, "string");
+        if (this.uiCache[cacheKey] === stringValue) {
+            return;
+        }
+        this.uiCache[cacheKey] = stringValue;
+        target.setStringValue(stringValue, property);
+    }
+
     openPopup() {
         const clickObjectName = this.object.name + '.click';
         this.object.clicked === undefined ? this.object.clicked = 0 : {};
