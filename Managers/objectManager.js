@@ -1,5 +1,9 @@
 
 //обработака нажатий клавиш
+let lastHoverObjectName = "";
+let lastHoverTime = 0;
+let lastLogWriteAt = 0;
+
 function keyInput() {
     if (events.hasKeyPress()) {
         let ans = events.keyPressed();
@@ -163,18 +167,19 @@ function clickRelease(object, name = objectName, imitClick = false, noClick = fa
 
 function hoverF(object, objectName, noClick, needFocus){
     let hover = events.mouseHover(objectName);
-    let hover2 = events.mouseHover(objectName.split('.')[0]);
     object.hover ? {} : (object.hover = hover, object.hoverTime = 0, objs[objectName] = object.hoverTime);
-    let lastObj = Object.keys(objs).reduce((a, b) => objs[a] >= objs[b] ? a : b);
 
     
     if(hover.globalPosX == object.hover.globalPosX && hover.globalPosY == object.hover.globalPosY){
         if(noClick){
             return colors.SERVICE.Frame.reset;
         }
-        else if(lastObj == objectName && accessData.stringValue('HMIVariable.mouse') == diagNameMouse &&
-            hover2.globalPosX == object.hover.globalPosX && hover2.globalPosY == object.hover.globalPosY){
-            return colors.SERVICE.Frame.set;
+        else if(lastHoverObjectName == objectName && accessData.stringValue('HMIVariable.mouse') == diagNameMouse){
+            let hover2 = events.mouseHover(objectName.split('.')[0]);
+            if(hover2.globalPosX == object.hover.globalPosX && hover2.globalPosY == object.hover.globalPosY){
+                return colors.SERVICE.Frame.set;
+            }
+            return colors.SERVICE.Frame.reset;
         }
         else if(needFocus){
             return colors.SERVICE.Frame.reset;
@@ -188,6 +193,10 @@ function hoverF(object, objectName, noClick, needFocus){
         object.hover = hover;
         object.hoverTime = Date.now();
         objs[objectName] = object.hoverTime;
+        if (object.hoverTime >= lastHoverTime) {
+            lastHoverTime = object.hoverTime;
+            lastHoverObjectName = objectName;
+        }
         if(noClick){
             return colors.SERVICE.Frame.reset;
         }
@@ -295,11 +304,20 @@ function timeConvertM (time) {
 
 //логирование
 function LogData(data, functionName) {
+    const now = Date.now();
+    if (now - lastLogWriteAt < 250) {
+        return;
+    }
+    lastLogWriteAt = now;
+
     let timeStamp = new Date().toLocaleString();
     let dataMessage = `[${timeStamp}] [Функция: ${functionName}] : ${data}\n: ${data}\n\n`;
 
     let logFile = `${environment.projectDir()}/scripts/logs.txt`;
     let currentLogs = environment.readFile(logFile, "UTF-8") || "";
+    if (currentLogs.length > 200000) {
+        currentLogs = currentLogs.slice(-100000);
+    }
 
     environment.writeFile(currentLogs + dataMessage, logFile);
 }
