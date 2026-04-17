@@ -746,23 +746,42 @@ function layers(object, objectName, name_layer) {
     let mouseEvent = clickRelease(object, objectName);
     if(mouseEvent.action == 'release') {
         if(name_layer == 'VU'){
-            layer.setVisible("VU",true);
-            layer.setVisible("main",false);
+            if (!layer.isVisible("VU")) {
+                layer.setVisible("VU",true);
+            }
+            if (layer.isVisible("main")) {
+                layer.setVisible("main",false);
+            }
             // VU.Rectangle_6.setDoubleValue(3,"LineWidth")
             // SU.Rectangle_6.setDoubleValue(1,"LineWidth")
         }
         else if(name_layer == 'main') {
-            layer.setVisible("VU",false);
-            layer.setVisible("main",true);
+            if (layer.isVisible("VU")) {
+                layer.setVisible("VU",false);
+            }
+            if (!layer.isVisible("main")) {
+                layer.setVisible("main",true);
+            }
         }
     }
+
+    if (object._lineWidthCache === undefined) {
+        object._lineWidthCache = "";
+    }
+
     if(layer.isVisible("VU")){
-        VU.Rectangle_6.setDoubleValue(3,"LineWidth")
-        SU.Rectangle_6.setDoubleValue(1,"LineWidth")
+        if (object._lineWidthCache !== "VU") {
+            VU.Rectangle_6.setDoubleValue(3,"LineWidth")
+            SU.Rectangle_6.setDoubleValue(1,"LineWidth")
+            object._lineWidthCache = "VU";
+        }
     }
     else if (layer.isVisible("main")){
-        VU.Rectangle_6.setDoubleValue(1,"LineWidth")
-        SU.Rectangle_6.setDoubleValue(3,"LineWidth")
+        if (object._lineWidthCache !== "main") {
+            VU.Rectangle_6.setDoubleValue(1,"LineWidth")
+            SU.Rectangle_6.setDoubleValue(3,"LineWidth")
+            object._lineWidthCache = "main";
+        }
     }
 
 }
