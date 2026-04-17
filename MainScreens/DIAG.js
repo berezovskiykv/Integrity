@@ -416,20 +416,20 @@ class LinkClass extends ObservableObject {
    
         if(this.sw=='sw2')
        {
-            if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && accessData.boolValue(this.ARM))
+            if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.ARM)
             RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
             RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
        }
        else if(this.sw=='sw1'){
-          if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1))
+          if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1))
             RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
             RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
        }
        else
        {
-            if((accessData.stringValue(this.adminstatus)==1) && (accessData.stringValue(this.operstatus)==1) && accessData.stringValue(this.adminstatus2)==1 && accessData.stringValue(this.operstatus2)==1)
+            if((this.currentState.adminstatus == 1) && (this.currentState.operstatus == 1) && this.currentState.adminstatus2 == 1 && this.currentState.operstatus2 == 1)
             RGBAColoring(this.object, colors.VLV.Fillstate.open, "LineColor");
             else
             RGBAColoring(this.object, colors.AP.Flt.act, "LineColor");
